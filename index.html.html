@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>নাটোর জেলা ইফতার ট্র্যাকার | মোবাইল ফ্রেন্ডলি</title>
+    <!-- Leaflet CSS / JS (উন্নত মানের ম্যাপের জন্য) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- মার্কার ক্লাস্টার প্লাগইন -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <!-- সার্চ কন্ট্রোল প্লাগইন -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-search@2.9.7/dist/leaflet-search.min.css" />
+    <script src="https://unpkg.com/leaflet-control-search@2.9.7/dist/leaflet-search.min.js"></script>
+    
+    <!-- ফুলস্ক্রিন বাটন প্লাগইন -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-fullscreen@1.0.2/dist/leaflet.fullscreen.css" />
+    <script src="https://unpkg.com/leaflet-fullscreen@1.0.2/dist/Leaflet.fullscreen.min.js"></script>
+    
+    <!-- ফন্ট অ্যাওসাম আইকন -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- গুগল ফন্ট (পপিন্স) -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body, html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* ম্যাপ পুরো স্ক্রিন নেয়, পৃষ্ঠা স্ক্রল হয় না */
+            -webkit-tap-highlight-color: transparent; /* মোবাইলে ট্যাপ হাইলাইট কমান */
+        }
+        /* উন্নত হেডার ডিজাইন */
+        .header {
+            background: linear-gradient(145deg, #0b3b2f 0%, #1a5a3a 100%);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+            z-index: 1000;
+            position: relative;
+            border-bottom: 4px solid #ffb347;
+        }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+        }
+        .header-left h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.4);
+        }
+        .header-left h1 i {
+            color: #ffb347;
+            margin-right: 10px;
+            filter: drop-shadow(0 2px 5px rgba(255,180,71,0.7));
+        }
+        .header-left .developer {
+            font-size: 0.85rem;
+            color: #ffe083;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+            font-weight: 300;
+        }
+        .header-right {
+            background: #ffb347;
+            color: #0b3b2f;
+            padding: 10px 20px;
+            border-radius: 60px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            box-shadow: 0 8px 18px rgba(255,180,71,0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: 0.3s;
+            border: 2px solid white;
+            white-space: nowrap;
+        }
+        .header-right i {
+            font-size: 1.6rem;
+            color: #0b3b2f;
+        }
+        /* মানচিত্রের কন্টেইনার */
+        #map {
+            height: calc(100% - 80px); /* হেডারের উচ্চতা */
+            width: 100%;
+            background: #d4e3e9;
+            cursor: crosshair;
+            touch-action: pan-x pan-y; /* টাচ ড্র্যাগ সক্রিয় */
+        }
+        /* স্ট্যাটিস্টিকস বার - মোবাইল ফ্রেন্ডলি */
+        .stats-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 15px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(12px);
+            padding: 12px 20px;
+            border-radius: 50px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.25);
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            border: 2px solid #ffb347;
+            font-weight: 500;
+            pointer-events: none; /* যাতে ম্যাপের ইন্টারঅ্যাকশনে বাধা না দেয় */
+        }
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stat-icon {
+            background: #1e5a3a;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .stat-text {
+            font-weight: 600;
+        }
+        .stat-text span {
+            font-size: 1.2rem;
+            color: #0b3b2f;
+            font-weight: 800;
+            margin-right: 3px;
+        }
+        .stat-text small {
+            color: #555;
+            font-size: 0.75rem;
+            font-weight: 400;
+        }
+        /* লিজেন্ড বক্স */
+        .legend-box {
+            position: absolute;
+            bottom: 20px;
+            right: 15px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(12px);
+            padding: 12px 18px;
+            border-radius: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 1px solid #ddd;
+            font-size: 0.8rem;
+            min-width: 170px;
+            border-left: 6px solid #ffb347;
+            pointer-events: none;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 6px 0;
+        }
+        .color-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        /* পপআপ কাস্টমাইজ - টাচ ফ্রেন্ডলি */
+        .custom-popup .leaflet-popup-content {
+            min-width: 240px;
+            font-size: 0.9rem;
+            padding: 10px;
+        }
+        .add-btn {
+            background: #1e5a3a;
+            color: white;
+            border: none;
+            padding: 10px 18px;  /* বড় বাটন, টাচের জন্য সুবিধা */
+            border-radius: 40px;
+            cursor: pointer;
+            margin: 8px 3px 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            min-width: 100px; /* টাচ টার্গেট বড় */
+            touch-action: manipulation;
+        }
+        .add-btn:hover {
+            background: #ffb347;
+            color: #0b3b2f;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(255,180,71,0.5);
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px 15px; /* বড় ফিল্ড */
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            transition: 0.2s;
+            touch-action: manipulation;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #ffb347;
+            box-shadow: 0 0 0 4px rgba(255,180,71,0.3);
+        }
+        label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 12px 0;
+            font-size: 0.95rem;
+            background: #f5f5f5;
+            padding: 10px 15px;
+            border-radius: 40px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        /* মোবাইলে অতিরিক্ত অপ্টিমাইজেশন */
+        @media (max-width: 700px) {
+            .header h1 { font-size: 1.2rem; }
+            .header-left .developer { font-size: 0.7rem; }
+            .header-right { font-size: 0.9rem; padding: 6px 12px; gap: 5px; }
+            .header-right i { font-size: 1.2rem; }
+            .stats-bar { bottom: 10px; left: 10px; padding: 8px 15px; gap: 12px; }
+            .stat-icon { width: 32px; height: 32px; font-size: 1rem; }
+            .stat-text span { font-size: 1rem; }
+            .stat-text small { font-size: 0.65rem; }
+            .legend-box { bottom: 10px; right: 10px; padding: 8px 12px; font-size: 0.7rem; min-width: 140px; }
+            .legend-item { gap: 5px; }
+            .color-dot { width: 14px; height: 14px; }
+            .add-btn { padding: 8px 12px; font-size: 0.8rem; min-width: 80px; }
+        }
+        /* খুব ছোট পর্দায় */
+        @media (max-width: 480px) {
+            .stats-bar { flex-direction: column; gap: 5px; width: 130px; }
+            .header-right { font-size: 0.8rem; padding: 5px 10px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- হেডার -->
+    <div class="header">
+        <div class="header-left">
+            <h1><i class="fas fa-map-marked-alt"></i> নাটোর জেলা ইফতার ট্র্যাকার</h1>
+            <div class="developer"><i class="fas fa-code"></i> Developed by Md Mahadi Hassan Dipu</div>
+        </div>
+        <div class="header-right" id="biryaniCounter">
+            <i class="fas fa-utensils"></i>
+            <span id="biryaniCount">৫</span> জায়গায় বিরিয়ানি
+        </div>
+    </div>
+
+    <!-- মানচিত্র -->
+    <div id="map"></div>
+
+    <!-- স্ট্যাটিস্টিকস বার -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fas fa-mosque"></i></div>
+            <div class="stat-text">
+                <span id="totalIftar">১২</span> <small>মোট ইফতার</small>
+            </div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fas fa-fire"></i></div>
+            <div class="stat-text">
+                <span id="biryaniStat">৫</span> <small>বিরিয়ানি</small>
+            </div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fas fa-users"></i></div>
+            <div class="stat-text">
+                <span id="activeUsers">৪৭</span> <small>সক্রিয়</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- লিজেন্ড -->
+    <div class="legend-box">
+        <div style="font-weight:700; margin-bottom:8px; color:#0b3b2f;"><i class="fas fa-info-circle"></i> চিহ্নিতকরণ</div>
+        <div class="legend-item"><span class="color-dot" style="background:#4CAF50;"></span> যাচাইকৃত</div>
+        <div class="legend-item"><span class="color-dot" style="background:#FFC107;"></span> অযাচাইকৃত</div>
+        <div class="legend-item"><span class="color-dot" style="background:#2196F3;"></span> আপনার যোগ করা</div>
+        <div class="legend-item"><span class="color-dot" style="background:#ffb347; border:2px solid #cc7f2a;"></span> <i class="fas fa-crown" style="color:#cc7f2a;"></i> বিরিয়ানি দিচ্ছে</div>
+    </div>
+
+    <script>
+        (function() {
+            // ---------- কনফিগারেশন ----------
+            const map = L.map('map', {
+                zoomControl: true,
+                scrollWheelZoom: true,      // স্ক্রল জুম সক্রিয়
+                wheelPxPerZoomLevel: 60,
+                zoomAnimation: true,
+                fadeAnimation: true,
+                markerZoomAnimation: true,
+                tap: true,                   // মোবাইল ট্যাপ সক্রিয়
+                touchZoom: true,              // টাচ জুম সক্রিয়
+                dragging: true
+            }).setView([24.4136, 88.9872], 11);  // নাটোর সেন্টার
+
+            // উন্নত মানের বেসম্যাপ (গুগল ম্যাপের কাছাকাছি)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; CartoDB',
+                subdomains: 'abcd',
+                maxZoom: 19,
+                minZoom: 10
+            }).addTo(map);
+
+            // নাটোর জেলার সীমানা
+            const bounds = L.latLngBounds(
+                L.latLng(24.1836, 88.7872),
+                L.latLng(24.6436, 89.1872)
+            );
+            map.setMaxBounds(bounds);
+            map.on('drag', function() {
+                map.panInsideBounds(bounds, { animate: true });
+            });
+
+            // মার্কার ক্লাস্টার গ্রুপ
+            const markersCluster = L.markerClusterGroup({
+                showCoverageOnHover: false,
+                maxClusterRadius: 50,
+                iconCreateFunction: function(cluster) {
+                    var count = cluster.getChildCount();
+                    return L.divIcon({
+                        html: '<div style="background-color:#ffb347; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#1e3c2c; font-weight:bold; border:2px solid white; box-shadow:0 4px 10px rgba(0,0,0,0.4); font-size:0.9rem;">' + count + '</div>',
+                        className: 'marker-cluster',
+                        iconSize: L.point(40, 40)
+                    });
+                }
+            });
+
+            // নমুনা ডাটা (নাটোরের মসজিদ)
+            const sampleLocations = [
+                {lat: 24.4136, lng: 88.9872, name: "নাটোর রাজবাড়ী মসজিদ", desc: "রাজবাড়ীর পাশে। ইফতারে বিশেষ আয়োজন থাকে।", verified: true, hasBiryani: true},
+                {lat: 24.3836, lng: 88.9372, name: "নাটোর কেন্দ্রীয় জামে মসজিদ", desc: "শহরের প্রধান মসজিদ। প্রতিদিন ইফতার বিতরণ।", verified: true, hasBiryani: true},
+                {lat: 24.5136, lng: 89.0372, name: "লালপুর উপজেলা মসজিদ", desc: "শুক্রবার ও বিশেষ দিনে বিরিয়ানি দেয়।", verified: false, hasBiryani: true},
+                {lat: 24.3436, lng: 89.0872, name: "সিংড়া দারুস সালাম মসজিদ", desc: "স্থানীয়দের পক্ষ থেকে ইফতার।", verified: true, hasBiryani: false},
+                {lat: 24.4536, lng: 88.8872, name: "গুরুদাসপুর বড় মসজিদ", desc: "প্রতি শুক্রবার বিরিয়ানি সহ ইফতার।", verified: false, hasBiryani: true},
+                {lat: 24.4040, lng: 88.9780, name: "বড়াইগ্রাম কেন্দ্রীয় মসজিদ", desc: "আজ ইফতারে বিরিয়ানি দিবে ইনশাআল্লাহ।", verified: true, hasBiryani: true},
+                {lat: 24.3700, lng: 88.9300, name: "মাদ্রাসা রোড জামে মসজিদ", desc: "প্রতিদিন ইফতার, শুক্রবার বিরিয়ানি।", verified: false, hasBiryani: true},
+                {lat: 24.5100, lng: 89.0100, name: "লালপুর বাজার জামে মসজিদ", desc: "রমজানের প্রতিদিন ইফতার দেয়।", verified: true, hasBiryani: false},
+                {lat: 24.3350, lng: 89.0400, name: "সিংড়া বড় মসজিদ", desc: "শুক্রবার বিরিয়ানি দেওয়ার রেওয়াজ।", verified: true, hasBiryani: true}
+            ];
+
+            // বিরিয়ানি কাউন্ট আপডেট
+            function updateBiryaniCount() {
+                const count = sampleLocations.filter(loc => loc.hasBiryani).length;
+                document.getElementById('biryaniCount').innerText = count;
+                document.getElementById('biryaniStat').innerText = count;
+                document.getElementById('totalIftar').innerText = sampleLocations.length;
+            }
+            updateBiryaniCount();
+
+            // মার্কার তৈরি
+            sampleLocations.forEach(function(item) {
+                let markerColor = item.verified ? '#4CAF50' : '#FFC107';
+                let borderColor = 'white';
+                let iconHtml = `<div style="background-color:${markerColor}; width:24px; height:24px; border-radius:50%; border:3px solid ${borderColor}; box-shadow:0 3px 8px rgba(0,0,0,0.4);"></div>`;
+                
+                if (item.hasBiryani) {
+                    iconHtml = `<div style="background-color:${markerColor}; width:24px; height:24px; border-radius:50%; border:3px solid #ffb347; box-shadow:0 0 0 4px rgba(255,180,71,0.5);"></div>`;
+                }
+
+                const marker = L.marker([item.lat, item.lng], {
+                    icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: iconHtml,
+                        iconSize: [24, 24],
+                        popupAnchor: [0, -12]
+                    })
+                });
+
+                let popupText = `<b>${item.name}</b><br>${item.desc}<br>`;
+                popupText += item.verified ? '✅ যাচাইকৃত' : '⚠️ অযাচাইকৃত';
+                if (item.hasBiryani) {
+                    popupText += '<br><span style="background:#ffb347; color:#0b3b2f; padding:4px 15px; border-radius:40px; font-size:0.8rem; font-weight:600; display:inline-block; margin-top:8px;"><i class="fas fa-crown"></i> আজ বিরিয়ানি দিচ্ছে</span>';
+                }
+                marker.bindPopup(popupText);
+
+                markersCluster.addLayer(marker);
+            });
+
+            map.addLayer(markersCluster);
+
+            // সার্চ কন্ট্রোল
+            const searchControl = new L.Control.Search({
+                layer: markersCluster,
+                propertyName: 'title',  // মার্কারে title না থাকায় কিছুটা সীমিত, তবে ডিফল্ট কাজ করবে
+                zoom: 15,
+                hideMarkerOnCollapse: true,
+                textPlaceholder: 'স্থান খুঁজুন...',
+                position: 'topleft'
+            });
+            map.addControl(searchControl);
+
+            // ফুলস্ক্রিন কন্ট্রোল
+            map.addControl(new L.Control.Fullscreen({
+                position: 'topleft',
+                title: 'ফুলস্ক্রিন দেখুন'
+            }));
+
+            // স্কেল কন্ট্রোল
+            L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
+
+            // ম্যাপে ক্লিক করে তথ্য যোগ (টাচ ফ্রেন্ডলি)
+            map.on('click', function(e) {
+                if (!bounds.contains(e.latlng)) {
+                    alert('শুধু নাটোর জেলার ভিতরে ক্লিক করুন।');
+                    return;
+                }
+
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                const popupContent = `
+                    <div style="text-align:center;">
+                        <h4 style="margin:0 0 12px; color:#0b3b2f;">🍛 নতুন ইফতার তথ্য</h4>
+                        <input type="text" id="mosqueName" placeholder="মসজিদের নাম" style="width:100%;">
+                        <textarea id="details" placeholder="বিস্তারিত (যেমন: কখন দেয়, কি দেয়)" rows="2" style="width:100%;"></textarea>
+                        <label style="display:flex; align-items:center; gap:5px; margin:10px 0;">
+                            <input type="checkbox" id="hasBiryani" value="yes"> <i class="fas fa-crown" style="color:#ffb347;"></i> এখানে বিরিয়ানি দিচ্ছে
+                        </label>
+                        <button class="add-btn" onclick="addBiryaniLocation(${lat}, ${lng})">✅ তথ্য যোগ করুন</button>
+                        <button class="add-btn" onclick="map.closePopup()" style="background:#888;">❌ বাতিল</button>
+                        <p style="font-size:10px; margin-top:12px; color:#777;">📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}</p>
+                    </div>
+                `;
+
+                L.popup({ className: 'custom-popup', maxWidth: 290 })
+                    .setLatLng(e.latlng)
+                    .setContent(popupContent)
+                    .openOn(map);
+            });
+
+            // গ্লোবাল ফাংশন
+            window.addBiryaniLocation = function(lat, lng) {
+                const mosqueName = document.getElementById('mosqueName')?.value.trim();
+                const details = document.getElementById('details')?.value.trim() || 'কোনো বিবরণ নেই';
+                const hasBiryani = document.getElementById('hasBiryani')?.checked;
+
+                if (!mosqueName) {
+                    alert('অনুগ্রহ করে মসজিদের নাম দিন।');
+                    return;
+                }
+
+                let iconHtml = `<div style="background-color:#2196F3; width:24px; height:24px; border-radius:50%; border:3px solid white; box-shadow:0 3px 8px rgba(0,0,0,0.4);"></div>`;
+                if (hasBiryani) {
+                    iconHtml = `<div style="background-color:#2196F3; width:24px; height:24px; border-radius:50%; border:3px solid #ffb347; box-shadow:0 0 0 4px rgba(255,180,71,0.5);"></div>`;
+                }
+
+                const newMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: iconHtml,
+                        iconSize: [24, 24],
+                        popupAnchor: [0, -12]
+                    })
+                });
+
+                let popupMsg = `<b>${mosqueName}</b><br>${details}<br>🆕 আপনার যোগ করা`;
+                if (hasBiryani) {
+                    popupMsg += '<br><span style="background:#ffb347; color:#0b3b2f; padding:4px 15px; border-radius:40px; font-size:0.8rem; font-weight:600; display:inline-block; margin-top:8px;"><i class="fas fa-crown"></i> আজ বিরিয়ানি দিচ্ছে</span>';
+                    
+                    let currentCount = parseInt(document.getElementById('biryaniCount').innerText);
+                    document.getElementById('biryaniCount').innerText = currentCount + 1;
+                    document.getElementById('biryaniStat').innerText = currentCount + 1;
+                }
+                newMarker.bindPopup(popupMsg);
+
+                markersCluster.addLayer(newMarker);
+
+                let total = parseInt(document.getElementById('totalIftar').innerText) + 1;
+                document.getElementById('totalIftar').innerText = total;
+
+                map.closePopup();
+                alert('আপনার তথ্য মানচিত্রে যুক্ত হয়েছে। ধন্যবাদ!');
+            };
+
+            // অ্যাক্টিভ ইউজার র‍্যান্ডম আপডেট
+            setInterval(() => {
+                const active = Math.floor(Math.random() * 40) + 35;
+                document.getElementById('activeUsers').innerText = active;
+            }, 15000);
+
+        })();
+    </script>
+</body>
+</html>
